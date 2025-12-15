@@ -1,40 +1,205 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import SideBar from "../../components/SideBar/SideBar";
 import NavBar from "../../components/NavBar/NavBar";
-
 import { fetchUserTopics } from "../../api";
+import useWebSocket from "../../hooks/useWebSocket";
+import RequestTopicModal from "../../components/Modals/RequestTopicModal";
+import TopicDetailsModal from "../../components/Topic/TopicDetailsModal";
 
 const Home = () => {
   const [messages, setMessages] = useState([]);
   const [topicName, setTopicName] = useState("");
   const [partitions, setPartitions] = useState(1);
-  const [createdTopics, setCreatedTopics] = useState([]); 
-  const [uncreatedRequests, setUncreatedRequests] = useState([]); 
+  const [createdTopics, setCreatedTopics] = useState([]);
+  const [uncreatedRequests, setUncreatedRequests] = useState([]);
 
-  const navigate = useNavigate();
+  const debounceTimer = useRef(null);
 
-  const refreshData = async () => {
-    try {
-      const { data } = await axios.get("/api/home_api/");
-      setUncreatedRequests(data.uncreated_requests || []);
-      setCreatedTopics(data.created_topics || []);
-      console.log("🔄 Dashboard data refreshed");
-    } catch (err) {
-      console.error("Failed to fetch dashboard:", err);
-    }
-  };
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    refreshData();
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState(null);
 
-    window.addEventListener("dataUpdated", refreshData);
-    return () => window.removeEventListener("dataUpdated", refreshData);
+  // ---------------------------------------------------
+  // 1. Debounced Refresh Function
+  // ---------------------------------------------------
+  const refreshData = useCallback(() => {
+    clearTimeout(debounceTimer.current);
+
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const { data } = await axios.get("/api/home_api/");
+        setUncreatedRequests(data.uncreated_requests || []);
+        setCreatedTopics(data.created_topics || []);
+      } catch (err) {
+        console.error("Failed to fetch dashboard:", err);
+      }
+    }, 200);
   }, []);
 
+  // ---------------------------------------------------
+  // 2. Initial Fetch (no polling)
+  // ---------------------------------------------------
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
+  // ---------------------------------------------------
+  // 3. WebSocket Setup — REAL TIME User Updates
+  // ---------------------------------------------------
+  // useWebSocket("ws://127.0.1.1:8000/ws/user/", (msg) => {
+  //   console.log("WS User Message:", msg);
+
+  //   switch (msg.event) {
+  //     case "request_approved":
+  //     case "request_declined":
+  //     case "topic_created":
+  //     case "topic_created_by_admin":
+  //     case "topic_deleted":
+  //     case "user_refresh":
+  //       refreshData();
+  //       break;
+
+  //     default:
+  //       console.log("Unknown WS event:", msg.event);
+  //   }
+  // });
+  // useWebSocket("ws://127.0.1.1:8000/ws/user/", (msg) => {
+  //   console.log("WS User Message:", msg);
+
+  //   switch (msg.event) {
+  //     // -----------------------------------------------
+  //     // CREATE APPROVED
+  //     // -----------------------------------------------
+  //     case "request_approved":
+  //       setMessages([
+  //         {
+  //           text: `Your topic request for "${msg.topic_name}" was approved. You can now click "Create Topic".`,
+  //           type: "success",
+  //         },
+  //       ]);
+  //       refreshData();
+  //       break;
+
+  //     // -----------------------------------------------
+  //     // CREATE or DELETE DECLINED
+  //     // -----------------------------------------------
+  //     case "request_declined":
+  //       setMessages([
+  //         {
+  //           text: `Your ${msg.request_type.toLowerCase()} request for "${
+  //             msg.topic_name
+  //           }" was declined by admin.`,
+  //           type: "error",
+  //         },
+  //       ]);
+  //       refreshData();
+  //       break;
+
+  //     // -----------------------------------------------
+  //     // TOPIC CREATED (after admin approves CREATE)
+  //     // -----------------------------------------------
+  //     case "topic_created":
+  //     case "topic_created_by_admin":
+  //       setMessages([
+  //         {
+  //           text: `Topic "${msg.topic_name}" created successfully.`,
+  //           type: "success",
+  //         },
+  //       ]);
+  //       refreshData();
+  //       break;
+
+  //     // -----------------------------------------------
+  //     // TOPIC DELETED (after admin approves DELETE)
+  //     // -----------------------------------------------
+  //     case "topic_deleted":
+  //       setMessages([
+  //         {
+  //           text: `Topic "${msg.topic_name}" was deleted by admin.`,
+  //           type: "success",
+  //         },
+  //       ]);
+  //       refreshData();
+  //       break;
+
+  //     // -----------------------------------------------
+  //     // FORCED REFRESH
+  //     // -----------------------------------------------
+  //     case "user_refresh":
+  //       refreshData();
+  //       break;
+
+  //     default:
+  //       console.log("Unknown WS event:", msg.event);
+  //   }
+  // });
+
+  useWebSocket("ws://127.0.1.1:8000/ws/user/", (msg) => {
+    console.log("WS User Message:", msg);
+
+    const { event, payload = {} } = msg;
+
+    switch (event) {
+      case "request_approved":
+        setMessages([
+          {
+            text: `Your topic request for "${payload.topic_name}" was approved. You can now click "Create Topic".`,
+            type: "success",
+          },
+        ]);
+        refreshData();
+        break;
+
+      case "request_declined":
+        setMessages([
+          {
+            text: `Your ${payload.request_type?.toLowerCase()} request for "${
+              payload.topic_name
+            }" was declined by admin.`,
+            type: "error",
+          },
+        ]);
+        refreshData();
+        break;
+
+      case "topic_deleted":
+        setMessages([
+          {
+            text: `Topic "${payload.topic_name}" was deleted by admin.`,
+            type: "success",
+          },
+        ]);
+        refreshData();
+        break;
+
+      case "topic_created":
+      case "topic_created_by_admin":
+        setMessages([
+          {
+            text: `Topic "${payload.topic_name}" created successfully.`,
+            type: "success",
+          },
+        ]);
+        refreshData();
+        break;
+
+      case "user_refresh":
+        refreshData();
+        break;
+
+      default:
+        console.log("Unknown WS event:", event);
+    }
+  });
+
+  // ---------------------------------------------------
+  // 4. Submit Topic Request
+  // ---------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     const payload = {
       topic_name: topicName,
       partitions: Number(partitions),
@@ -42,22 +207,22 @@ const Home = () => {
 
     try {
       const { data } = await axios.post("/api/home_api/", payload, {
-        withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });
 
       setMessages([
         { text: data.message, type: data.success ? "success" : "error" },
       ]);
+
       if (data.success) {
         setTopicName("");
         setPartitions(1);
-        const topics = await fetchUserTopics(); // refresh topic list
+
+        const topics = await fetchUserTopics();
         setCreatedTopics(topics);
-        window.dispatchEvent(new Event("dataUpdated"));
       }
     } catch (err) {
-      console.error("Error creating topic:", err.response?.data || err.message);
+      console.error("Error creating topic:", err);
       setMessages([
         {
           text: err.response?.data?.message || "Failed to send topic request",
@@ -67,33 +232,13 @@ const Home = () => {
     }
   };
 
-  //  Create topic from approved request
-
+  // ---------------------------------------------------
+  // 5. Create topic (after admin approved user's request)
+  // ---------------------------------------------------
   const handleCreateTopic = async (id) => {
     try {
       const { data } = await axios.post(`/api/create_topic_api/${id}/`);
 
-      if (data.success) {
-        setMessages([{ text: data.message, type: "success" }]);
-
-        const topics = await fetchUserTopics();
-        setCreatedTopics(topics);
-
-        window.dispatchEvent(new Event("dataUpdated"));
-      }
-      // setMessages([
-      //   { text: data.message, type: data.success ? "success" : "error" },
-      // ]);
-    } catch (err) {
-      console.error(err);
-      setMessages([{ text: "Topic creation failed", type: "error" }]);
-    }
-  };
-
-  //  Delete created topic
-  const handleDeleteTopic = async (id) => {
-    try {
-      const { data } = await axios.delete(`/api/delete_topic/${id}/`);
       setMessages([
         { text: data.message, type: data.success ? "success" : "error" },
       ]);
@@ -102,30 +247,77 @@ const Home = () => {
         const topics = await fetchUserTopics();
         setCreatedTopics(topics);
       }
-
-      window.dispatchEvent(new Event("dataUpdated"));
-
-      // if (data.success) {
-      //   setCreatedTopics((prev) => prev.filter((t) => t.id !== id));
-      // }
     } catch (err) {
       console.error(err);
-      setMessages([{ text: "Delete failed", type: "error" }]);
+      setMessages([{ text: "Topic creation failed", type: "error" }]);
     }
   };
 
+  // ---------------------------------------------------
+  // 6. Delete User Topic
+  // ---------------------------------------------------
+  // const handleDeleteTopic = async (id) => {
+  //   try {
+  //     const { data } = await axios.delete(`/api/delete_topic/${id}/`);
+
+  //     setMessages([
+  //       { text: data.message, type: data.success ? "success" : "error" },
+  //     ]);
+
+  //     if (data.success) {
+  //       const topics = await fetchUserTopics();
+  //       setCreatedTopics(topics);
+  //     }
+  //   } catch (err) {
+  //     console.error(err);
+  //     setMessages([{ text: "Delete failed", type: "error" }]);
+  //   }
+  // };
+
+  const handleDeleteTopic = async (topic) => {
+    try {
+      const payload = {
+        topic_name: topic.name,
+        partitions: topic.partitions,
+        request_type: "DELETE",
+      };
+
+      const { data } = await axios.post("/api/home_api/", payload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      setMessages([
+        { text: data.message, type: data.success ? "success" : "error" },
+      ]);
+
+      if (data.success) {
+        refreshData();
+      }
+    } catch (err) {
+      console.error(err);
+      setMessages([{ text: "Delete request failed", type: "error" }]);
+    }
+  };
+
+  useEffect(() => {
+    const openModal = () => setIsModalOpen(true);
+    window.addEventListener("openRequestTopicModal", openModal);
+
+    return () => window.removeEventListener("openRequestTopicModal", openModal);
+  }, []);
+
+  // ---------------------------------------------------
+  // Render Component
+  // ---------------------------------------------------
   return (
-    <div className="max-w-10xl mx-auto font-sans">
-      {/* Header */}
+    <div className="max-w-10xl mx-auto font-sans mt-16">
       <NavBar />
 
-      {/* Content Wrapper */}
-      <div className="flex flex-col md:flex-row">
-        {/* Sidebar */}
+      <div className="flex">
         <SideBar />
 
-        {/* Main content */}
-        <main className="flex-1 p-5 bg-gray-100 rounded-md">
+        {/* <main className="flex-1 p-5 bg-gray-100 rounded-md"> */}
+        <main className="flex-1 ml-60 p-5 bg-gray-100 rounded-md min-h-screen">
           <h2 className="text-2xl font-semibold text-gray-700 mb-4">
             User Dashboard
           </h2>
@@ -145,10 +337,11 @@ const Home = () => {
           ))}
 
           {/* Request New Topic */}
-          <div className="bg-white rounded-lg p-5 mb-5 shadow">
+          {/* <div className="bg-white rounded-lg p-5 mb-5 shadow">
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
               Request a New Topic
             </h2>
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="block text-gray-600 mb-1">Topic Name</label>
@@ -157,9 +350,10 @@ const Home = () => {
                   value={topicName}
                   onChange={(e) => setTopicName(e.target.value)}
                   required
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  className="w-full p-2 border rounded"
                 />
               </div>
+
               <div>
                 <label className="block text-gray-600 mb-1">
                   Number of Partitions
@@ -170,45 +364,81 @@ const Home = () => {
                   onChange={(e) => setPartitions(e.target.value)}
                   min="1"
                   required
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  className="w-full p-2 border rounded"
                 />
               </div>
-              <button
-                type="submit"
-                className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded font-medium"
-              >
+
+              <button className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded">
                 Submit Request
               </button>
             </form>
-          </div>
+          </div> */}
+          <RequestTopicModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            topicName={topicName}
+            setTopicName={setTopicName}
+            partitions={partitions}
+            setPartitions={setPartitions}
+            handleSubmit={(e) => {
+              handleSubmit(e);
+              setIsModalOpen(false);
+            }}
+          />
 
-          {/* Approved topic Requests */}
+          {/* Approved Requests */}
           <div className="bg-white rounded-lg p-5 mb-5 shadow">
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
               Approved Topic Requests
             </h2>
+
             {uncreatedRequests.length > 0 ? (
-              <table className="w-full border-collapse">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-gray-100 text-gray-700">
-                    <th className="p-2 text-left">Topic Name</th>
+                    <th className="p-2 text-left">Topic</th>
                     <th className="p-2 text-left">Partitions</th>
                     <th className="p-2 text-left">Status</th>
                     <th className="p-2 text-left">Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {uncreatedRequests.map((req) => (
-                    <tr key={req.id} className="border-b border-gray-200">
+                    <tr key={req.id}>
                       <td className="p-2">{req.topic_name}</td>
                       <td className="p-2">{req.partitions}</td>
-                      <td className="p-2">{req.status}</td>
+                      {/* Status with color */}
                       <td className="p-2">
+                        <span
+                          className={`px-2 py-1 rounded text-sm font-medium ${
+                            req.status === "APPROVED"
+                              ? "bg-green-100 text-green-700"
+                              : req.status === "PENDING"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                      </td>
+                      <td className="p-2">
+                        {/* <button
+                          onClick={() => handleCreateTopic(req.id)}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Create Topic
+                        </button> */}
                         <button
                           onClick={() => handleCreateTopic(req.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                          disabled={req.status !== "APPROVED"} // only active when approved
+                          className={`px-3 py-1 rounded text-sm text-white ${
+                            req.status === "APPROVED"
+                              ? "bg-green-600 hover:bg-green-700"
+                              : "bg-gray-400 cursor-not-allowed"
+                          }`}
                         >
-                          Create topic
+                          Create Topic
                         </button>
                       </td>
                     </tr>
@@ -216,49 +446,62 @@ const Home = () => {
                 </tbody>
               </table>
             ) : (
-              <p className="text-gray-500 text-center">No Approved requests.</p>
+              <p className="text-gray-500">No approved requests.</p>
             )}
           </div>
 
           {/* Created Topics */}
           <div className="bg-white rounded-lg p-5 mb-5 shadow">
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
-              Created Topics
+              Your Created Topics
             </h2>
+
             {createdTopics.length > 0 ? (
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-100 text-gray-700">
-                    <th className="p-2 text-left">Topic Name</th>
+              <table className="w-full">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 text-left">Topic</th>
                     <th className="p-2 text-left">Partitions</th>
-                    <th className="p-2 text-left">Action</th>
+                    <th className="p-2 text-left">Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {createdTopics.map((topic) => (
-                    <tr key={topic.id} className="border-b border-gray-200">
+                    <tr key={topic.id}>
                       <td className="p-2">{topic.name}</td>
                       <td className="p-2">{topic.partitions}</td>
+
                       <td className="p-2 space-x-2">
                         <button
-                          onClick={() => navigate(`/topic/${topic.name}`)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                          onClick={() => {
+                            setSelectedTopic(topic.name);
+                            setIsViewModalOpen(true);
+                          }}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-sm"
                         >
                           View
                         </button>
 
-                        <button
-                          onClick={() => navigate(`/alter-topic/${topic.name}`)}
-                          className="bg-orange-400 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm"
+                        {/* <TopicDetailsModal
+                          isOpen={isViewModalOpen}
+                          onClose={() => setIsViewModalOpen(false)}
+                          topicName={selectedTopic}
+                          role="user"
+                        /> */}
+
+                        {/* <button
+                          onClick={() => navigate(`/topic/${topic.name}`)}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-sm"
                         >
-                          Alter
-                        </button>
+                          View
+                        </button> */}
 
                         <button
-                          onClick={() => handleDeleteTopic(topic.id)}
-                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                          onClick={() => handleDeleteTopic(topic)}
+                          className="bg-red-600 text-white px-3 py-1 rounded text-sm"
                         >
-                          Delete
+                          Delete request
                         </button>
                       </td>
                     </tr>
@@ -266,11 +509,18 @@ const Home = () => {
                 </tbody>
               </table>
             ) : (
-              <p className="text-gray-500 text-center">
-                No created topics yet.
-              </p>
+              <p className="text-gray-500">No created topics yet.</p>
             )}
           </div>
+          <TopicDetailsModal
+            isOpen={isViewModalOpen}
+            onClose={() => {
+              setIsViewModalOpen(false);
+              setSelectedTopic(null);
+            }}
+            topicName={selectedTopic}
+            role="user"
+          />
         </main>
       </div>
     </div>
