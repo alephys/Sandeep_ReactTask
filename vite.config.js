@@ -14,8 +14,10 @@ export default defineConfig({
         target:'http://127.0.1.1:8000',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api/, ''),
-        ws: true,
-      },
+        // ws: true,
+      }
+      ,
+      // Should UNCOMMENTED during the development and COMMENTED during production
       '/ws': {
         target: 'ws://127.0.1.1:8000',
         changeOrigin: true,

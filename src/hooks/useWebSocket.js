@@ -1,6 +1,12 @@
 import { useEffect, useRef } from "react";
 
 // hooks/useWebSocket.js
+
+export function getWebSocketUrl(path) {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${window.location.host}${path}`;
+}
+
 export default function useWebSocket(url, onMessage) {
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);

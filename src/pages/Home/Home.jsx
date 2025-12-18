@@ -3,7 +3,7 @@ import axios from "axios";
 import SideBar from "../../components/SideBar/SideBar";
 import NavBar from "../../components/NavBar/NavBar";
 import { fetchUserTopics } from "../../api";
-import useWebSocket from "../../hooks/useWebSocket";
+import useWebSocket, { getWebSocketUrl } from "../../hooks/useWebSocket";
 import RequestTopicModal from "../../components/Modals/RequestTopicModal";
 import TopicDetailsModal from "../../components/Topic/TopicDetailsModal";
 
@@ -136,7 +136,7 @@ const Home = () => {
   //   }
   // });
 
-  useWebSocket("ws://127.0.1.1:8000/ws/user/", (msg) => {
+  useWebSocket(getWebSocketUrl("/ws/user/"), (msg) => {
     console.log("WS User Message:", msg);
 
     const { event, payload = {} } = msg;

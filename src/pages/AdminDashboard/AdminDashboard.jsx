@@ -4,7 +4,7 @@ import SideBar from "../../components/SideBar/SideBar";
 import NavBar from "../../components/NavBar/NavBar";
 import DashboardStats from "../../components/Stats/DashboardStats";
 import AdminTopicSection from "../../components/Topic/AdminTopicSection";
-import useWebSocket from "../../hooks/useWebSocket";
+import useWebSocket, { getWebSocketUrl } from "../../hooks/useWebSocket";
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -13,7 +13,11 @@ const AdminDashboard = () => {
     requests_total: 0,
     requests_approved: 0,
     requests_declined: 0,
+    
     acls_total: 0,
+    acls_db: 0,
+    acls_kafka: 0,
+    acls_synced: 0,
   });
 
   const debounceTimer = useRef(null);
@@ -38,7 +42,7 @@ const AdminDashboard = () => {
   }, [fetchStats]);
 
   // WebSocket listener
-  useWebSocket("ws://127.0.1.1:8000/ws/admin/", (msg) => {
+  useWebSocket(getWebSocketUrl("/ws/admin/"), (msg) => {
     console.log("WS Stats Update:", msg);
 
     if (!msg.event) return;
@@ -46,6 +50,8 @@ const AdminDashboard = () => {
     // ANY admin event → refresh stats
     fetchStats();
   });
+
+  
 
   return (
     <div className="max-w-10xl mx-auto font-sans mt-16">
