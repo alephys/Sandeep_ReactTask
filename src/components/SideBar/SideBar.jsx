@@ -51,9 +51,7 @@ function SideBar() {
 
   return (
     // <aside className="w-full md:w-60 bg-gray-50 border-r border-gray-300 p-4 rounded-md shadow-sm">
-    <aside
-      className="fixed top-20 left-0 h-[calc(100vh-5rem)] w-60 bg-gray-50 border-r border-gray-300 p-4 overflow-y-auto shadow-sm"
-    >
+    <aside className="fixed top-14 left-0 h-[calc(100vh-5rem)] w-60 bg-gray-50 border-r border-gray-300 p-4 overflow-y-auto ">
       <h2 className="text-lg font-semibold text-gray-700 mb-3">Dashboard</h2>
       <div>
         {/* <button

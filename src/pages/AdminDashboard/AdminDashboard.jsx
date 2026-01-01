@@ -5,6 +5,7 @@ import NavBar from "../../components/NavBar/NavBar";
 import DashboardStats from "../../components/Stats/DashboardStats";
 import AdminTopicSection from "../../components/Topic/AdminTopicSection";
 import useWebSocket, { getWebSocketUrl } from "../../hooks/useWebSocket";
+import AdminCreateTopicModal from "../../components/Modals/AdminCreateTopicModal";
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -52,15 +53,49 @@ const AdminDashboard = () => {
   });
 
   
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [topicName, setTopicName] = useState("");
+  const [partitions, setPartitions] = useState(1);
+
+  // Listen for event from SideBar
+  useEffect(() => {
+    const openModal = () => setIsCreateOpen(true);
+
+    window.addEventListener("openCreateTopicModal", openModal);
+
+    return () => {
+      window.removeEventListener("openCreateTopicModal", openModal);
+    };
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      const res = await axios.post(
+        "/api/admin_dashboard_api/",
+        { topic_name: topicName, partitions: partitions },
+        { withCredentials: true }
+      );
+
+      if (res.data.success) {
+        
+        setIsCreateOpen(false);
+      }
+    } catch (err) {
+      
+      console.error(err);
+    }
+  };
 
   return (
-    <div className="max-w-10xl mx-auto font-sans mt-16">
+    <div className="max-w-10xl mx-auto font-sans mt-12">
       <NavBar />
 
       <div className="flex flex-col md:flex-row">
         <SideBar />
 
-        <main className="flex-1 ml-60 p-5 bg-gray-100 rounded-md min-h-screen">
+        <main className="flex-1 ml-60 p-5 bg-gray-200 rounded-md min-h-screen">
           <h2 className="text-2xl font-semibold text-gray-700 mb-4">
             Admin Dashboard
           </h2>
@@ -69,6 +104,15 @@ const AdminDashboard = () => {
           <AdminTopicSection />
         </main>
       </div>
+      <AdminCreateTopicModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        topicName={topicName}
+        setTopicName={setTopicName}
+        partitions={partitions}
+        setPartitions={setPartitions}
+        handleSubmit={handleSubmit}
+      />
     </div>
   );
 };

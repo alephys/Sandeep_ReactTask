@@ -9,6 +9,7 @@ import AlterTopic from "./components/AlterTopic/AlterTopic";
 import Login from "./pages/Login/Login";
 import History from "./components/History/History";
 import AclList from "./components/Acl/AclList";
+import ClusterInfo from "./pages/ClusterInfo";
 // import NavBar from "./components/NavBar/NavBar";
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
           <Route path="/alter-topic/:topicName" element={<AlterTopic />} />
           <Route path="/admin-dashboard/history" element={<History/> } />
           <Route path="/acls" element={<AclList />} />
+          <Route path="/cluster-info" element={<ClusterInfo />} />
         </Routes>
       </BrowserRouter>
     </>

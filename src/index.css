@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+@keyframes pulse-glow {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0px rgba(16, 185, 129, 0.7); /* green-500 glow */
+  }
+  50% {
+    transform: scale(1.25);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 1);
+  }
+}
+
+.pulse-active {
+  animation: pulse-glow 1.5s infinite ease-in-out;
+}
