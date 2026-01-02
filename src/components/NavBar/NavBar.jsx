@@ -34,9 +34,13 @@ const NavBar = () => {
   const fetchClusterStatus = async () => {
     try {
       const { data } = await axios.get("/api/cluster_status/");
+      // setClusterStatus({
+      //   status: data.status,
+      //   brokers: data.brokers,
+      // });
       setClusterStatus({
         status: data.status,
-        brokers: data.brokers,
+        brokers: data.brokers_count, // number
       });
     } catch (err) {
       setClusterStatus({
@@ -60,7 +64,7 @@ const NavBar = () => {
     if (msg.event === "cluster_status") {
       setClusterStatus({
         status: msg.payload.status,
-        brokers: msg.payload.brokers,
+        brokers: msg.payload.brokers_count,
       });
     }
   });
@@ -112,7 +116,9 @@ const NavBar = () => {
           {clusterStatus.status === "CHECKING..." && "Checking Cluster"}
         </span>
 
-        <span className="text-white">{clusterStatus.brokers?.length || 0} brokers</span>
+        <span className="text-white">
+          {clusterStatus.brokers || 0} brokers
+        </span>
       </div>
       {/* Cluster Status */}
       {/* <div className="absolute left-5 flex items-center gap-3">
