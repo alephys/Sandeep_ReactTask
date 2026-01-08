@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import NavBar from "../NavBar/NavBar";
+import { Search } from "lucide-react";
 
 const History = () => {
   const [history, setHistory] = useState([]);
+  const [filteredHistory, setFilteredHistory] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [messages, setMessages] = useState([]);
 
+  // -------------------------------
+  // Fetch History
+  // -------------------------------
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         const { data } = await axios.get("/api/history_api/");
         if (data.success) {
           setHistory(data.history || []);
+          setFilteredHistory(data.history || []);
         } else {
           setMessages([{ text: "Failed to load history data", type: "error" }]);
         }
@@ -24,12 +31,36 @@ const History = () => {
     fetchHistory();
   }, []);
 
+  // -------------------------------
+  // Debounced Search
+  // -------------------------------
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!searchTerm.trim()) {
+        setFilteredHistory(history);
+        return;
+      }
+
+      const lowerSearch = searchTerm.toLowerCase();
+
+      const filtered = history.filter((item) =>
+        item.topic_name?.toLowerCase().includes(lowerSearch) ||
+        item.requested_by?.toLowerCase().includes(lowerSearch) ||
+        item.status?.toLowerCase().includes(lowerSearch)
+      );
+
+      setFilteredHistory(filtered);
+    }, 300); // ⏱ debounce delay
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, history]);
+
   return (
-    <div className="mx-auto font-sans">
+    <div className="max-w-10xl mx-auto font-sans mt-16">
       <NavBar />
 
       <div className="bg-white rounded-lg p-5 mb-5 shadow mt-5">
-        <h2 className="text-xl text-center font-semibold text-gray-700 mb-3">
+        <h2 className="text-xl text-center font-semibold text-gray-700 mb-5">
           Topic History
         </h2>
 
@@ -47,6 +78,21 @@ const History = () => {
           </div>
         ))}
 
+        {/* 🔍 Search Bar */}
+        <div className="relative max-w-md mb-4">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            type="text"
+            placeholder="Search by topic, user or status..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         {/* History Table */}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -59,9 +105,10 @@ const History = () => {
                 <th className="p-2 text-left border-b">Status</th>
               </tr>
             </thead>
+
             <tbody>
-              {history.length > 0 ? (
-                history.map((req) => (
+              {filteredHistory.length > 0 ? (
+                filteredHistory.map((req) => (
                   <tr key={req.id} className="border-b hover:bg-gray-50">
                     <td className="p-2">{req.topic_name}</td>
                     <td className="p-2">{req.partitions}</td>
@@ -85,7 +132,7 @@ const History = () => {
               ) : (
                 <tr>
                   <td colSpan="5" className="p-4 text-center text-gray-500">
-                    No History
+                    No matching history found
                   </td>
                 </tr>
               )}

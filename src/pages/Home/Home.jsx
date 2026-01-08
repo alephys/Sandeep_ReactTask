@@ -3,9 +3,10 @@ import axios from "axios";
 import SideBar from "../../components/SideBar/SideBar";
 import NavBar from "../../components/NavBar/NavBar";
 import { fetchUserTopics } from "../../api";
-import useWebSocket from "../../hooks/useWebSocket";
+import useWebSocket, { getWebSocketUrl } from "../../hooks/useWebSocket";
 import RequestTopicModal from "../../components/Modals/RequestTopicModal";
 import TopicDetailsModal from "../../components/Topic/TopicDetailsModal";
+import UserAlterTopicModal from "../../components/Modals/UserAlterTopicModal";
 
 const Home = () => {
   const [messages, setMessages] = useState([]);
@@ -19,6 +20,7 @@ const Home = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isUserAlterModalOpen, setIsUserAlterModalOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(null);
 
   // ---------------------------------------------------
@@ -48,104 +50,16 @@ const Home = () => {
   // ---------------------------------------------------
   // 3. WebSocket Setup — REAL TIME User Updates
   // ---------------------------------------------------
-  // useWebSocket("ws://127.0.1.1:8000/ws/user/", (msg) => {
-  //   console.log("WS User Message:", msg);
-
-  //   switch (msg.event) {
-  //     case "request_approved":
-  //     case "request_declined":
-  //     case "topic_created":
-  //     case "topic_created_by_admin":
-  //     case "topic_deleted":
-  //     case "user_refresh":
-  //       refreshData();
-  //       break;
-
-  //     default:
-  //       console.log("Unknown WS event:", msg.event);
-  //   }
-  // });
-  // useWebSocket("ws://127.0.1.1:8000/ws/user/", (msg) => {
-  //   console.log("WS User Message:", msg);
-
-  //   switch (msg.event) {
-  //     // -----------------------------------------------
-  //     // CREATE APPROVED
-  //     // -----------------------------------------------
-  //     case "request_approved":
-  //       setMessages([
-  //         {
-  //           text: `Your topic request for "${msg.topic_name}" was approved. You can now click "Create Topic".`,
-  //           type: "success",
-  //         },
-  //       ]);
-  //       refreshData();
-  //       break;
-
-  //     // -----------------------------------------------
-  //     // CREATE or DELETE DECLINED
-  //     // -----------------------------------------------
-  //     case "request_declined":
-  //       setMessages([
-  //         {
-  //           text: `Your ${msg.request_type.toLowerCase()} request for "${
-  //             msg.topic_name
-  //           }" was declined by admin.`,
-  //           type: "error",
-  //         },
-  //       ]);
-  //       refreshData();
-  //       break;
-
-  //     // -----------------------------------------------
-  //     // TOPIC CREATED (after admin approves CREATE)
-  //     // -----------------------------------------------
-  //     case "topic_created":
-  //     case "topic_created_by_admin":
-  //       setMessages([
-  //         {
-  //           text: `Topic "${msg.topic_name}" created successfully.`,
-  //           type: "success",
-  //         },
-  //       ]);
-  //       refreshData();
-  //       break;
-
-  //     // -----------------------------------------------
-  //     // TOPIC DELETED (after admin approves DELETE)
-  //     // -----------------------------------------------
-  //     case "topic_deleted":
-  //       setMessages([
-  //         {
-  //           text: `Topic "${msg.topic_name}" was deleted by admin.`,
-  //           type: "success",
-  //         },
-  //       ]);
-  //       refreshData();
-  //       break;
-
-  //     // -----------------------------------------------
-  //     // FORCED REFRESH
-  //     // -----------------------------------------------
-  //     case "user_refresh":
-  //       refreshData();
-  //       break;
-
-  //     default:
-  //       console.log("Unknown WS event:", msg.event);
-  //   }
-  // });
-
-  useWebSocket("ws://127.0.1.1:8000/ws/user/", (msg) => {
+  useWebSocket(getWebSocketUrl("/ws/user/"), (msg) => {
     console.log("WS User Message:", msg);
 
     const { event, payload = {} } = msg;
 
     switch (event) {
-      case "request_approved":
+      case "topic_created":
         setMessages([
           {
-            text: `Your topic request for "${payload.topic_name}" was approved. You can now click "Create Topic".`,
+            text: `Topic "${payload.topic_name}" created successfully.`,
             type: "success",
           },
         ]);
@@ -157,7 +71,7 @@ const Home = () => {
           {
             text: `Your ${payload.request_type?.toLowerCase()} request for "${
               payload.topic_name
-            }" was declined by admin.`,
+            }" was declined by admin. Comment: ${payload.comments || "-"}`,
             type: "error",
           },
         ]);
@@ -174,11 +88,20 @@ const Home = () => {
         refreshData();
         break;
 
-      case "topic_created":
       case "topic_created_by_admin":
         setMessages([
           {
             text: `Topic "${payload.topic_name}" created successfully.`,
+            type: "success",
+          },
+        ]);
+        refreshData();
+        break;
+
+      case "partitions_altered":
+        setMessages([
+          {
+            text: `Partitions updated for "${payload.topic_name}" (${payload.old} → ${payload.new}).`,
             type: "success",
           },
         ]);
@@ -235,23 +158,23 @@ const Home = () => {
   // ---------------------------------------------------
   // 5. Create topic (after admin approved user's request)
   // ---------------------------------------------------
-  const handleCreateTopic = async (id) => {
-    try {
-      const { data } = await axios.post(`/api/create_topic_api/${id}/`);
+  // const handleCreateTopic = async (id) => {
+  //   try {
+  //     const { data } = await axios.post(`/api/create_topic_api/${id}/`);
 
-      setMessages([
-        { text: data.message, type: data.success ? "success" : "error" },
-      ]);
+  //     setMessages([
+  //       { text: data.message, type: data.success ? "success" : "error" },
+  //     ]);
 
-      if (data.success) {
-        const topics = await fetchUserTopics();
-        setCreatedTopics(topics);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessages([{ text: "Topic creation failed", type: "error" }]);
-    }
-  };
+  //     if (data.success) {
+  //       const topics = await fetchUserTopics();
+  //       setCreatedTopics(topics);
+  //     }
+  //   } catch (err) {
+  //     console.error(err);
+  //     setMessages([{ text: "Topic creation failed", type: "error" }]);
+  //   }
+  // };
 
   // ---------------------------------------------------
   // 6. Delete User Topic
@@ -310,7 +233,7 @@ const Home = () => {
   // Render Component
   // ---------------------------------------------------
   return (
-    <div className="max-w-10xl mx-auto font-sans mt-16">
+    <div className="max-w-10xl mx-auto font-sans mt-12">
       <NavBar />
 
       <div className="flex">
@@ -389,17 +312,18 @@ const Home = () => {
           {/* Approved Requests */}
           <div className="bg-white rounded-lg p-5 mb-5 shadow">
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
-              Approved Topic Requests
+              Topic Requests
             </h2>
 
             {uncreatedRequests.length > 0 ? (
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-100 text-gray-700">
+                  <tr className="bg-gray-200 text-gray-700">
                     <th className="p-2 text-left">Topic</th>
                     <th className="p-2 text-left">Partitions</th>
+                    <th className="p-2 text-left">Type</th>
                     <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Actions</th>
+                    <th className="p-2 text-left">Comments</th>
                   </tr>
                 </thead>
 
@@ -408,6 +332,17 @@ const Home = () => {
                     <tr key={req.id}>
                       <td className="p-2">{req.topic_name}</td>
                       <td className="p-2">{req.partitions}</td>
+                      <td className="p-2">
+                        <span
+                          className={`px-2 py-1 rounded text-sm font-medium ${
+                            req.request_type === "DELETE"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {req.request_type}
+                        </span>
+                      </td>
                       {/* Status with color */}
                       <td className="p-2">
                         <span
@@ -422,14 +357,15 @@ const Home = () => {
                           {req.status}
                         </span>
                       </td>
-                      <td className="p-2">
-                        {/* <button
+                      <td className="p-2">{req.comments || "-"}</td>
+                      {/* <td className="p-2"> */}
+                      {/* <button
                           onClick={() => handleCreateTopic(req.id)}
                           className="bg-green-600 text-white px-3 py-1 rounded text-sm"
                         >
                           Create Topic
                         </button> */}
-                        <button
+                      {/* <button
                           onClick={() => handleCreateTopic(req.id)}
                           disabled={req.status !== "APPROVED"} // only active when approved
                           className={`px-3 py-1 rounded text-sm text-white ${
@@ -439,8 +375,9 @@ const Home = () => {
                           }`}
                         >
                           Create Topic
-                        </button>
-                      </td>
+                        </button> */}
+                      {/* CREATE requests will never appear here now */}
+                      {/* </td> */}
                     </tr>
                   ))}
                 </tbody>
@@ -453,12 +390,12 @@ const Home = () => {
           {/* Created Topics */}
           <div className="bg-white rounded-lg p-5 mb-5 shadow">
             <h2 className="text-xl font-semibold text-gray-700 mb-3">
-              Your Created Topics
+              Created Topics
             </h2>
 
             {createdTopics.length > 0 ? (
               <table className="w-full">
-                <thead className="bg-gray-100">
+                <thead className="bg-gray-200">
                   <tr>
                     <th className="p-2 text-left">Topic</th>
                     <th className="p-2 text-left">Partitions</th>
@@ -496,6 +433,15 @@ const Home = () => {
                         >
                           View
                         </button> */}
+                        <button
+                          onClick={() => {
+                            setSelectedTopic(topic);
+                            setIsUserAlterModalOpen(true);
+                          }}
+                          className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Request Alter
+                        </button>
 
                         <button
                           onClick={() => handleDeleteTopic(topic)}
@@ -520,6 +466,11 @@ const Home = () => {
             }}
             topicName={selectedTopic}
             role="user"
+          />
+          <UserAlterTopicModal
+            isOpen={isUserAlterModalOpen}
+            onClose={() => setIsUserAlterModalOpen(false)}
+            topic={selectedTopic}
           />
         </main>
       </div>
